@@ -1,4 +1,4 @@
-# Explainable ML to Identify Circadian-Biomarkers
+# Explainable ML to Identify Circadian Biomarkers
 
 A modular Python pipeline for processing wrist actigraphy data across clinical groups (ADHD, depression, schizophrenia, and healthy controls) to extract circadian-rhythm features, detect behavioral signatures, and classify diagnostic groups using XGBoost and a Pretrained Actigraphy Transformer (PAT).
 
