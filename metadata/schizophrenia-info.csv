@@ -1,0 +1,23 @@
+number,gender,age,days,schtype,migraine,bprs,cloz,antipsych,moodst,acc_time
+schizophrenia_1,2,45-49,13,paranoid,schizophrenia not migraine,48,clozapine,not traditional neuroleptic,not mood stabilizer,9:00:00
+schizophrenia_2,2,50-54,13,paranoid,schizophrenia not migraine,59,not clozapine,not traditional neuroleptic,mood stabilizer,9:00:00
+schizophrenia_3,2,55-60,13,paranoid,schizophrenia not migraine,38,not clozapine,not traditional neuroleptic,mood stabilizer,9:00:00
+schizophrenia_4,2,35-39,13,paranoid,schizophrenia not migraine,51,clozapine,not traditional neuroleptic,mood stabilizer,9:00:00
+schizophrenia_5,1,35-39,13,paranoid,schizophrenia + migraine,59,clozapine,not traditional neuroleptic,not mood stabilizer,9:00:00
+schizophrenia_6,2,55-59,13,non-paranoid,schizophrenia not migraine,NA,clozapine,not traditional neuroleptic,not mood stabilizer,9:00:00
+schizophrenia_7,2,25-29,12,paranoid,schizophrenia not migraine,56,clozapine,not traditional neuroleptic,mood stabilizer,9:00:00
+schizophrenia_8,1,40-44,13,paranoid,schizophrenia not migraine,44,not clozapine,not traditional neuroleptic,not mood stabilizer,9:00:00
+schizophrenia_9,2,65-69,13,non-paranoid,schizophrenia not migraine,58,not clozapine,not traditional neuroleptic,mood stabilizer,9:00:00
+schizophrenia_10,2,40-44,14,paranoid,schizophrenia not migraine,58,clozapine,not traditional neuroleptic,not mood stabilizer,9:00:00
+schizophrenia_11,2,30-34,13,paranoid,schizophrenia not migraine,59,not clozapine,not traditional neuroleptic,not mood stabilizer,9:00:00
+schizophrenia_12,1,55-59,13,non-paranoid,schizophrenia not migraine,38,not clozapine,tradional neuroleptic (as only n.),not mood stabilizer,9:00:00
+schizophrenia_13,2,35-39,12,paranoid,schizophrenia not migraine,49,clozapine,not traditional neuroleptic,not mood stabilizer,9:00:00
+schizophrenia_14,2,55-59,13,paranoid,schizophrenia + migraine,44,not clozapine,tradional neuroleptic (as only n.),not mood stabilizer,9:00:00
+schizophrenia_15,2,50-54,13,paranoid,schizophrenia not migraine,40,not clozapine,tradional neuroleptic (as only n.),not mood stabilizer,9:00:00
+schizophrenia_16,2,40-44,13,paranoid,schizophrenia + migraine,59,clozapine,not traditional neuroleptic,not mood stabilizer,9:00:00
+schizophrenia_17,2,45-49,13,paranoid,schizophrenia not migraine,56,not clozapine,not traditional neuroleptic,not mood stabilizer,9:00:00
+schizophrenia_18,2,55-59,13,non-paranoid,schizophrenia not migraine,NA,not clozapine,not traditional neuroleptic,not mood stabilizer,9:00:00
+schizophrenia_19,2,35-39,13,paranoid,schizophrenia + migraine,NA,not clozapine,tradional neuroleptic (as only n.),not mood stabilizer,9:00:00
+schizophrenia_20,2,40-44,13,paranoid,schizophrenia not migraine,NA,not clozapine,tradional neuroleptic (as only n.),not mood stabilizer,9:00:00
+schizophrenia_21,2,30-34,13,non-paranoid,schizophrenia not migraine,34,not clozapine,not traditional neuroleptic,not mood stabilizer,9:00:00
+schizophrenia_22,2,50-54,13,paranoid,schizophrenia not migraine,NA,not clozapine,tradional neuroleptic (as only n.),not mood stabilizer,9:00:00
