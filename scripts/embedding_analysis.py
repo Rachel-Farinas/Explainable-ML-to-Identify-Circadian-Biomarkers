@@ -1,3 +1,4 @@
+
 # embedding_analysis.py
 # Interprets PAT embeddings via three complementary approaches:
 #   1. Dimensionality reduction + visualization (t-SNE and UMAP)
@@ -365,59 +366,3 @@ def plot_similarity_distributions(
     plt.tight_layout()
     _save(save_fname)
     plt.show()
-
-    
-# ── 4. Metadata aggregation ────────────────────────────────────────────
-
-import glob
-import os
-
-import pandas as pd
-
-from .config import METADATA_DIR
-
-
-def load_master_metadata(metadata_dir: str = METADATA_DIR) -> pd.DataFrame:
-    """
-    Reads every *-info.csv found in `metadata_dir`, tags each row with its
-    group name, and returns the concatenated master metadata DataFrame.
-
-    Notes
-    -----
-    - The 'age' column is intentionally left as raw strings (e.g. "25-34")
-      so that main.py can parse ranges into the 'age_estimated' column.
-    - The 'gender' column is coerced to numeric (1 = female, 2 = male).
-    """
-    info_files = glob.glob(os.path.join(metadata_dir, "*-info.csv"))
-
-    if not info_files:
-        raise FileNotFoundError(
-            f"No '*-info.csv' files found in '{metadata_dir}'. "
-            "Check your METADATA_DIR setting in config.py."
-        )
-
-    metadata_list = []
-    for file_path in info_files:
-        df = pd.read_csv(file_path)
-        group_name = os.path.basename(file_path).replace("-info.csv", "")
-        df["group"] = group_name
-        metadata_list.append(df)
-
-    master_metadata = pd.concat(metadata_list, ignore_index=True)
-
-    # Coerce gender to numeric — it is always a plain integer (1 or 2)
-    if "gender" in master_metadata.columns:
-        master_metadata["gender"] = pd.to_numeric(
-            master_metadata["gender"], errors="coerce"
-        )
-    else:
-        print("[metadata] Warning: 'gender' column not found in metadata files.")
-
-    # Do NOT coerce age — it may be a range string like "25-34" which
-    # pd.to_numeric would silently convert to NaN. main.py handles parsing.
-
-    print(
-        f"[metadata] Loaded {len(master_metadata)} participants across "
-        f"{len(metadata_list)} group(s)."
-    )
-    return master_metadata

@@ -22,7 +22,7 @@ PAT_REPO_DIR     = os.path.join(BASE_DIR, "Pretrained-Actigraphy-Transformer")
 PAT_WEIGHTS_PATH = os.path.join(PAT_REPO_DIR, "weights", "PAT-L_29k_weights.h5")
 
 # ── Actigraphy groups ─────────────────────────────────────────────────────────
-GROUPS = ["adhd", "schizophrenia", "depression", "control", "clinical"]
+GROUPS = ["adhd", "schizophrenia", "depression", "control"]
 
 # ── Non-wear detection thresholds ─────────────────────────────────────────────
 NONWEAR_ZERO_THRESHOLD   = 60    # consecutive zero-activity minutes -> non-wear
@@ -42,25 +42,25 @@ CIRCADIAN_LABELS = ["night", "morning", "afternoon", "evening"]
 
 # ── PAT / embedding settings ──────────────────────────────────────────────────
 PAT_INPUT_SIZE  = 10080   # 7 days x 1440 min/day
-PAT_PATCH_SIZE  = 9
-PAT_EMBED_DIM   = 96
-PAT_NUM_LAYERS  = 4
+PAT_PATCH_SIZE  = 9       # PAT-L pretrained patch size
+PAT_EMBED_DIM   = 96      # PAT-L pretrained embed dim
+PAT_NUM_LAYERS  = 4       # PAT-L pretrained num transformer layers
 PAT_TEST_SIZE   = 0.20
 RANDOM_STATE    = 42
 
 # ── XGBoost feature sets ──────────────────────────────────────────────────────
 FEATURE_SETS = {
     "Base features (IS, IV, RA)":
-        ["IS", "IV", "relative_amplitude"],
+        ["IS", "IV", "relative_amplitude", "age_estimated", "gender"],
 
     "Base features + L5 and M10":
-        ["IS", "IV", "relative_amplitude", "M10", "L5"],
+        ["IS", "IV", "relative_amplitude", "M10", "L5", "age_estimated", "gender"],
 
     "Base features + sampEn_delta and daytime_volatility":
-        ["IS", "IV", "relative_amplitude", "sampEn_delta", "daytime_volatility"],
+        ["IS", "IV", "relative_amplitude", "sampEn_delta", "daytime_volatility", "age_estimated", "gender"],
 
     "Full model (all features)":
-        ["IS", "IV", "relative_amplitude", "M10", "L5", "sampEn_delta", "daytime_volatility"],
+        ["IS", "IV", "relative_amplitude", "M10", "L5", "sampEn_delta", "daytime_volatility", "age_estimated", "gender"],
 }
 
 # ── XGBoost hyperparameter search grid ───────────────────────────────────────

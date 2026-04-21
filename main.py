@@ -23,8 +23,7 @@
 #   │   ├── adhd/           *.csv
 #   │   ├── control/        *.csv
 #   │   ├── depression/     *.csv
-#   │   ├── schizophrenia/  *.csv
-#   │   └── clinical/       *.csv
+#   │   └── schizophrenia/  *.csv
 #   ├── metadata/
 #   │   ├── adhd-info.csv
 #   │   ├── control-info.csv
@@ -44,6 +43,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 # Force TensorFlow to use CPU before any TF imports happen
 os.environ["CUDA_VISIBLE_DEVICES"] = "-1"
 
+import math
 import numpy as np
 import pandas as pd
 
@@ -79,10 +79,20 @@ from scripts.plotting import (
 )
 from scripts.diagnostics import build_clinical_audit_table, compute_group_zscore_table
 from scripts.performance import encode_labels, run_feature_set_comparison, run_final_model, tune_xgboost
+from sklearn.preprocessing import LabelEncoder
 from scripts.embeddings import (
     print_embedding_preview,
     run_extraction_pipeline,
     save_embeddings,
+)
+from scripts.embedding_analysis import (
+    load_embeddings,
+    plot_tsne,
+    plot_umap,
+    run_embedding_classification,
+    plot_embedding_vs_handcrafted,
+    run_similarity_analysis,
+    plot_similarity_distributions,
 )
 
 
@@ -95,6 +105,41 @@ def main():
     print("=" * 60)
 
     master_metadata = load_master_metadata()
+
+    # Convert age ranges (e.g. "25-34") to a rounded-up midpoint stored in
+    # a new column "age_estimated" so the original "age" column is untouched.
+    if "age" in master_metadata.columns:
+        def parse_age(val):
+            try:
+                s = str(val).strip()
+                if "-" in s:
+                    lo, hi = s.split("-")
+                    return math.ceil((float(lo) + float(hi)) / 2)
+                return math.ceil(float(s))
+            except (ValueError, TypeError):
+                return float("nan")
+        master_metadata["age_estimated"] = master_metadata["age"].apply(parse_age)
+    else:
+        print("[main] Warning: 'age' column missing from metadata — adding age_estimated as NaN.")
+        master_metadata["age_estimated"] = float("nan")
+
+    # Ensure gender is numeric (1 = female, 2 = male)
+    if "gender" in master_metadata.columns:
+        master_metadata["gender"] = pd.to_numeric(master_metadata["gender"], errors="coerce")
+    else:
+        print("[main] Warning: 'gender' column missing from metadata — adding as NaN.")
+        master_metadata["gender"] = float("nan")
+
+    # Impute any remaining NaNs with group median,
+    # falling back to global median if an entire group is missing.
+    for col in ["age_estimated", "gender"]:
+        master_metadata[col] = master_metadata.groupby("group")[col].transform(
+            lambda x: x.fillna(x.median())
+        )
+        master_metadata[col] = master_metadata[col].fillna(master_metadata[col].median())
+
+    print(f"[main] age_estimated sample: {master_metadata['age_estimated'].head().tolist()}")
+
     print(master_metadata.head())
 
     # ══════════════════════════════════════════════════════════════
@@ -181,6 +226,7 @@ def main():
     check_features = [
         "IS", "IV", "M10", "L5", "relative_amplitude",
         "sampEn_delta", "sampEn_ratio", "daytime_volatility",
+        "age_estimated", "gender",
     ]
     plot_redundancy_heatmap(final_master_metadata, check_features)
 
@@ -200,7 +246,7 @@ def main():
 
     metrics_only = [
         "IS", "IV", "relative_amplitude", "M10", "L5",
-        "sampEn_delta", "daytime_volatility",
+        "sampEn_delta", "daytime_volatility", "age_estimated", "gender",
     ]
     compute_group_zscore_table(final_master_metadata, metrics_only)
 
@@ -239,6 +285,8 @@ def main():
         y_true=y,
         y_pred=y_pred_full,
         label_encoder=le,
+        display_cols=["Actual", "Status", "Predicted", "age_estimated", "gender",
+                      "M10", "sampEn_delta", "daytime_volatility", "IV"],
     )
 
     # ══════════════════════════════════════════════════════════════
@@ -293,6 +341,53 @@ def main():
 
     except Exception as e:
         print(f"[embeddings] Extraction failed: {e}")
+
+    # ══════════════════════════════════════════════════════════════
+    # 14. EMBEDDING ANALYSIS
+    # ══════════════════════════════════════════════════════════════
+    print("\n" + "=" * 60)
+    print("STEP 14 - Embedding analysis")
+    print("=" * 60)
+
+    try:
+        X_train_emb, X_test_emb, y_train_emb, y_test_emb = load_embeddings()
+
+        # Combine train + test for visualization and similarity
+        X_all = np.concatenate([X_train_emb, X_test_emb], axis=0)
+        y_all = np.concatenate([y_train_emb, y_test_emb], axis=0)
+
+        # Map integer labels to group name strings
+        category_map  = {0: "control", 1: "adhd", 2: "depression", 3: "schizophrenia"}
+        y_all_named   = np.array([category_map[int(i)] for i in y_all])
+        y_train_named = np.array([category_map[int(i)] for i in y_train_emb])
+        y_test_named  = np.array([category_map[int(i)] for i in y_test_emb])
+
+        le_emb = LabelEncoder()
+        le_emb.fit(y_all_named)
+        y_all_enc   = le_emb.transform(y_all_named)
+        y_train_enc = le_emb.transform(y_train_named)
+        y_test_enc  = le_emb.transform(y_test_named)
+
+        # 1. Visualisation
+        plot_tsne(X_all, y_all_enc, le_emb)
+        plot_umap(X_all, y_all_enc, le_emb)
+
+        # 2. Classification — compare PAT embeddings vs handcrafted features
+        summary = run_embedding_classification(
+            X_train_emb, X_test_emb, y_train_enc, y_test_enc, le_emb
+        )
+        best_handcrafted = max(accuracies.values())
+        embedding_accs   = dict(zip(summary["Classifier"], summary["Test Accuracy"]))
+        plot_embedding_vs_handcrafted(embedding_accs, best_handcrafted)
+
+        # 3. Similarity — group cohesion and atypical participants
+        sim_df = run_similarity_analysis(X_all, y_all_enc, le_emb)
+        plot_similarity_distributions(sim_df, le_emb)
+
+    except FileNotFoundError:
+        print("[embedding_analysis] No embedding files found — run Step 13 first.")
+    except Exception as e:
+        print(f"[embedding_analysis] Analysis failed: {e}")
 
     print("\n" + "=" * 60)
     print("Pipeline complete.")
