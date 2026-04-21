@@ -1,126 +1,133 @@
 # transformer_setup.py
-# PAT (Pretrained Actigraphy Transformer) architecture definition:
-# TransformerBlock, positional embeddings, and encoder builder.
+# PAT encoder architecture — exactly mirrors the original PAT tutorial notebook
+# so that pretrained weights load without shape or count mismatches.
 
 import numpy as np
 import tensorflow as tf
 from tensorflow.keras import layers, models
-from .config import PAT_NUM_LAYERS
+
+from .config import PAT_NUM_LAYERS, PAT_INPUT_SIZE, PAT_PATCH_SIZE, PAT_EMBED_DIM
 
 
 def get_positional_embeddings(num_patches: int, embed_dim: int) -> tf.Tensor:
+    """Sine/cosine positional embeddings matching the PAT notebook implementation."""
+    position  = tf.range(num_patches, dtype=tf.float32)[:, tf.newaxis]
+    div_term  = tf.exp(
+        tf.range(0, embed_dim, 2, dtype=tf.float32)
+        * (-tf.math.log(10000.0) / embed_dim)
+    )
+    pos_embeddings = tf.concat(
+        [tf.sin(position * div_term), tf.cos(position * div_term)], axis=-1
+    )
+    return pos_embeddings
+
+
+def TransformerBlock(
+    embed_dim: int,
+    num_heads: int,
+    ff_dim: int,
+    rate: float = 0.1,
+    name_prefix: str = "encoder_layer_1",
+) -> tf.keras.Model:
     """
-    Generates a fixed sine/cosine positional encoding matrix as used in the
-    PAT paper.
+    Functional-API transformer block matching the PAT notebook exactly.
 
-    Parameters
-    ----------
-    num_patches : number of patches (sequence length)
-    embed_dim   : embedding dimensionality
+    Layer names inside the block:
+      {name_prefix}_input       - Input
+      {name_prefix}_attention   - MultiHeadAttention
+      {name_prefix}_dropout     - Dropout after attention
+      {name_prefix}_norm1       - LayerNormalization (post-attention)
+      {name_prefix}_ff1         - Dense(ff_dim, relu)
+      {name_prefix}_ff2         - Dense(embed_dim)
+      {name_prefix}_dropout2    - Dropout after FFN
+      {name_prefix}_norm2       - LayerNormalization (post-FFN)
 
-    Returns
-    -------
-    tf.Tensor of shape (1, num_patches, embed_dim)
+    Returns a Model with outputs [final_output, attention_weights].
     """
-    pos         = np.arange(num_patches)[:, np.newaxis]
-    i           = np.arange(embed_dim)[np.newaxis, :]
-    angle_rates = 1 / np.power(10000, (2 * (i // 2)) / np.float32(embed_dim))
-    angle_rads  = pos * angle_rates
+    input_layer = layers.Input(
+        shape=(None, embed_dim), name=f"{name_prefix}_input"
+    )
 
-    angle_rads[:, 0::2] = np.sin(angle_rads[:, 0::2])
-    angle_rads[:, 1::2] = np.cos(angle_rads[:, 1::2])
+    attention_layer = layers.MultiHeadAttention(
+        num_heads=num_heads,
+        key_dim=embed_dim,
+        name=f"{name_prefix}_attention",
+    )
+    attention_output, attention_weights = attention_layer(
+        input_layer, input_layer, return_attention_scores=True
+    )
+    attention_output = layers.Dropout(
+        rate, name=f"{name_prefix}_dropout"
+    )(attention_output)
 
-    pos_encoding = angle_rads[np.newaxis, ...]
-    return tf.cast(pos_encoding, dtype=tf.float32)
+    out1 = layers.LayerNormalization(
+        epsilon=1e-6, name=f"{name_prefix}_norm1"
+    )(input_layer + attention_output)
 
+    ff_output = layers.Dense(
+        ff_dim, activation="relu", name=f"{name_prefix}_ff1"
+    )(out1)
+    ff_output = layers.Dense(
+        embed_dim, name=f"{name_prefix}_ff2"
+    )(ff_output)
+    ff_output = layers.Dropout(
+        rate, name=f"{name_prefix}_dropout2"
+    )(ff_output)
 
-class TransformerBlock(layers.Layer):
-    """
-    Single transformer encoder block: multi-head self-attention followed by a
-    position-wise feed-forward network, with residual connections and layer
-    normalization.
-    """
+    final_output = layers.LayerNormalization(
+        epsilon=1e-6, name=f"{name_prefix}_norm2"
+    )(out1 + ff_output)
 
-    def __init__(
-        self,
-        embed_dim: int,
-        num_heads: int,
-        ff_dim: int,
-        rate: float = 0.1,
-        name_prefix: str = "transformer",
-        **kwargs,
-    ):
-        super().__init__(**kwargs)
-        self.att       = layers.MultiHeadAttention(
-            num_heads=num_heads,
-            key_dim=embed_dim,
-            name=f"{name_prefix}_attn",
-        )
-        self.ffn = models.Sequential(
-            [
-                layers.Dense(ff_dim, activation="relu", name=f"{name_prefix}_ffn_1"),
-                layers.Dense(embed_dim, name=f"{name_prefix}_ffn_2"),
-            ],
-            name=f"{name_prefix}_ffn",
-        )
-        self.layernorm1 = layers.LayerNormalization(
-            epsilon=1e-6, name=f"{name_prefix}_norm1"
-        )
-        self.layernorm2 = layers.LayerNormalization(
-            epsilon=1e-6, name=f"{name_prefix}_norm2"
-        )
-        self.dropout1 = layers.Dropout(rate, name=f"{name_prefix}_drop1")
-        self.dropout2 = layers.Dropout(rate, name=f"{name_prefix}_drop2")
-
-    def call(self, inputs, training: bool = False):
-        attn_output, weights = self.att(
-            inputs, inputs,
-            return_attention_scores=True,
-            training=training,
-        )
-        attn_output = self.dropout1(attn_output, training=training)
-        out1        = self.layernorm1(inputs + attn_output)
-        ffn_output  = self.ffn(out1, training=training)
-        ffn_output  = self.dropout2(ffn_output, training=training)
-        return self.layernorm2(out1 + ffn_output)
+    return models.Model(
+        inputs=input_layer,
+        outputs=[final_output, attention_weights],
+        name=f"{name_prefix}_transformer",
+    )
 
 
 def build_encoder_for_extraction(
-    input_size: int = 10080,
-    patch_size: int = 144,
-    embed_dim:  int = 128,
-    num_layers: int = 5,
+    input_size: int = PAT_INPUT_SIZE,
+    patch_size: int = PAT_PATCH_SIZE,
+    embed_dim:  int = PAT_EMBED_DIM,
+    num_layers: int = PAT_NUM_LAYERS,
+    ff_dim:     int = 256,
+    num_heads:  int = 12,
+    rate:       float = 0.1,
 ) -> tf.keras.Model:
     """
-    Constructs the PAT encoder model used for feature extraction.
+    Builds the PAT encoder for feature extraction, matching the weight layout
+    of PAT-L_29k_weights.h5 exactly.
+
+    Encoder layers are named encoder_layer_1_transformer through
+    encoder_layer_{num_layers}_transformer, matching the saved weight keys.
 
     Architecture
     ------------
-    Raw actigraphy (10 080 min)
-    → Reshape into patches (70 × 144)
-    → Linear projection (70 × 128)
-    → + Positional embeddings
-    → N × TransformerBlock
-    → GlobalAveragePooling1D  →  embedding vector (128,)
-
-    Returns
-    -------
-    A compiled Keras Model named 'PAT_Feature_Extractor'.
+    inputs (10 080,)
+    -> reshape  (1120, 9)
+    -> dense    (1120, 96)           [named "dense"]
+    -> + positional embeddings
+    -> encoder_layer_1_transformer  (functional TransformerBlock)
+    -> ...
+    -> encoder_layer_N_transformer
+    -> GlobalAveragePooling1D
+    -> embedding vector (96,)
     """
     num_patches = input_size // patch_size
-    inputs      = layers.Input(shape=(input_size,), name="actigraphy_input")
+    inputs      = layers.Input(shape=(input_size,), name="inputs")
 
-    x = layers.Reshape((num_patches, patch_size), name="patch_reshape")(inputs)
-    x = layers.Dense(embed_dim, name="patch_projection")(x)
-
+    x = layers.Reshape((num_patches, patch_size), name="reshape")(inputs)
+    x = layers.Dense(embed_dim, name="dense")(x)
     x = x + get_positional_embeddings(num_patches, embed_dim)
 
     for i in range(num_layers):
-        x = TransformerBlock(
+        # name_prefix matches the saved weight keys: encoder_layer_1, encoder_layer_2, ...
+        x, _ = TransformerBlock(
             embed_dim,
-            num_heads=4,
-            ff_dim=256,
-            name=f"transformer_block_{i}",
+            num_heads=num_heads,
+            ff_dim=ff_dim,
+            rate=rate,
+            name_prefix=f"encoder_layer_{i + 1}",
         )(x)
 
     embeddings = layers.GlobalAveragePooling1D(name="global_avg_pool")(x)

@@ -42,8 +42,8 @@ CIRCADIAN_LABELS = ["night", "morning", "afternoon", "evening"]
 
 # ── PAT / embedding settings ──────────────────────────────────────────────────
 PAT_INPUT_SIZE  = 10080   # 7 days x 1440 min/day
-PAT_PATCH_SIZE  = 144
-PAT_EMBED_DIM   = 128
+PAT_PATCH_SIZE  = 9
+PAT_EMBED_DIM   = 96
 PAT_NUM_LAYERS  = 4
 PAT_TEST_SIZE   = 0.20
 RANDOM_STATE    = 42
